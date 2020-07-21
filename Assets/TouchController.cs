@@ -13,7 +13,7 @@ public class TouchController : MonoBehaviour
 
     private void Start()
     {
-        _player = GameObject.FindGameObjectWithTag("Player").GetComponent<ICharacterMotion>();
+        _player = gameObject.GetComponent<ICharacterMotion>();
     }
 
     // Update is called once per frame

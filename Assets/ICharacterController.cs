@@ -1,5 +1,5 @@
 ﻿public interface ICharacterController
 {
     // Character Controller Template
-    void DealAttack(string side = "middle");
+    void DealAttack(string side);
 }

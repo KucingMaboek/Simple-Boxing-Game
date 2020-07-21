@@ -4,10 +4,9 @@ public class BossMotion : MonoBehaviour, ICharacterMotion
 {
     private Animator _animator;
     private int _punchIteration;
-    private float _punchDelay;
-    private float _punchCooldown;
     private bool _isBlocking;
     private float _blockDelay;
+    private float _punchDelay;
 
     public GameObject opponent;
     private ICharacterController _opponentController;
@@ -15,17 +14,17 @@ public class BossMotion : MonoBehaviour, ICharacterMotion
     // List of punch motion
     private readonly string[,] _punchMotion = new string[,]
     {
-        {"punch1", "left"},
-        {"punch2", "right"},
-        {"punch3", "left"},
-        {"punch4", "right"}
+        {"Left Punch", "Left"},
+        {"Right Punch", "Right"},
+        {"Left Hook", "Left"},
+        {"Right Hook", "Right"}
     };
 
     // List of combo motion
     private readonly string[] _comboPunchMotion = new string[]
     {
-        "comboPunch1",
-        "comboPunch2"
+        "Combo Punch 1",
+        "Combo Punch 2"
     };
 
     void Start()
@@ -36,21 +35,15 @@ public class BossMotion : MonoBehaviour, ICharacterMotion
 
     private void Update()
     {
-        CoolingDown();
-    }
-
-    private void CoolingDown()
-    {
         if (_punchIteration > 0)
         {
-            _punchDelay += Time.deltaTime;
-            if (_punchDelay > _punchCooldown)
+            _punchDelay -= Time.deltaTime;
+            if (_punchDelay < 0)
             {
-                _animator.SetTrigger("reset");
                 _punchIteration = 0;
+                _animator.SetInteger("punch", _punchIteration);
             }
         }
-
         if (_blockDelay > 0)
         {
             _blockDelay -= Time.deltaTime;
@@ -62,54 +55,36 @@ public class BossMotion : MonoBehaviour, ICharacterMotion
     }
 
     // Do Punch
-    // Trigger issue, need to be revised
     private void Punch()
     {
-        _animator.SetTrigger(_punchMotion[_punchIteration, 0]);
-        _opponentController.DealAttack(_punchMotion[_punchIteration, 1]);
-        _punchDelay = 0f;
-        _punchCooldown = _animator.GetCurrentAnimatorStateInfo(0).length;
-
-        // If iteration is lesser than punch motion list length
-        if (_punchIteration < _punchMotion.GetLength(0)-1)
+        if (_punchIteration == 0 && _animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
         {
-            _punchIteration++;
+            // Play first motion from motion list
+            _animator.Play(_punchMotion[0, 0]);
+            _opponentController.DealAttack(_punchMotion[_punchIteration, 1]);
+            _punchDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
         }
-        // If iteration is more than punch motion list length
-        else
+        else if (_punchDelay > 0)
         {
-            _punchIteration = 0;
-        }
-    }
-
-    // Do Combo Punch
-    private void ComboPunch()
-    {
-        if (_animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
-        {
-            // Do random combo punch motion in list
-            _animator.SetTrigger(_comboPunchMotion[Random.Range(0, _comboPunchMotion.Length)]);
-            _opponentController.DealAttack("middle");
+            if (_animator.GetCurrentAnimatorStateInfo(0).IsName(_punchMotion[_punchIteration, 0]))
+            {
+                if (_punchIteration < _punchMotion.GetLength(0) - 1)
+                {
+                    _punchIteration++;
+                    _animator.SetInteger("punch", _punchIteration);
+                    _opponentController.DealAttack(_punchMotion[_punchIteration, 1]);
+                    _punchDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
+                }
+            }
         }
     }
 
-    // Do Elbow Punch
-    private void ElbowPunch()
+    private void Attack(string motion, string side = "Middle")
     {
         if (_animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
         {
-            _animator.SetTrigger("elbowPunch");
-            _opponentController.DealAttack();
-        }
-    }
-
-    // Block an attack
-    private void ReadyFightIdle()
-    {
-        if (_animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
-        {
-            _animator.SetTrigger("idleBlock");
-            _blockDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
+            _animator.Play(motion);
+            _opponentController.DealAttack(side);
         }
     }
 
@@ -120,12 +95,12 @@ public class BossMotion : MonoBehaviour, ICharacterMotion
 
     public void DoubleTapAction()
     {
-        ComboPunch();
+        Attack(_comboPunchMotion[Random.Range(0, _comboPunchMotion.Length)]);
     }
 
     public void SwipeUpAction()
     {
-        ElbowPunch();
+        Attack("Elbow Punch");
     }
 
     public void TwoTouchAction()
@@ -133,44 +108,29 @@ public class BossMotion : MonoBehaviour, ICharacterMotion
         _isBlocking = true;
         if (gameObject.tag.Equals("Player"))
         {
-            ReadyFightIdle();
+            if (_animator.GetCurrentAnimatorStateInfo(0).IsName("Idle"))
+            {
+                _animator.Play("Ready Block Idle");
+                _blockDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
+            }
         }
     }
 
     public void DealAttackAction(string side)
     {
+        // If at blocking state, block attack
         if (_isBlocking)
         {
-            if (side.Equals("left"))
-            {
-                _animator.SetTrigger("leftBlock");
-                _blockDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
-            }
-            else if (side.Equals("right"))
-            {
-                _animator.SetTrigger("rightBlock");
-                _blockDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
-            }
-            else
-            {
-                _animator.SetTrigger("middleBlock");
-                _blockDelay = _animator.GetCurrentAnimatorStateInfo(0).length;
-            }
+            _animator.Play(side + " Block");
         }
+        // If not in blocking state, hit
         else
         {
-            if (side.Equals("left"))
-            {
-                _animator.SetTrigger("leftHit");
-            }
-            else if (side.Equals("right"))
-            {
-                _animator.SetTrigger("rightHit");
-            }
-            else
-            {
-                _animator.SetTrigger("middleHit");
-            }
+            _animator.Play(side + " Hit");
         }
+
+        // Break Chain Punch
+        _punchIteration = 0;
+        _animator.SetInteger("punch", _punchIteration);
     }
 }
